@@ -1,0 +1,105 @@
+<apex:component controller="FileBrowserController">
+	<apex:attribute name="sObjectId" type="Id" assignTo="{!inputSObjectId}" required="true" description="The Id of the Object to display files for." />
+	<apex:attribute name="displayChildren" type="String[]" assignTo="{!childObjects}" required="false" description="The API Relationship names of related child objects to display files for." />
+	<apex:attribute name="displayLookup" type="String[]" assignTo="{!parentObjects}" required="false" description="The API Relationship names of lookup relationships to display files for." />
+	<apex:attribute name="showLines" type="Integer" assignTo="{!maxLines}" required="false" default="10" description="The number of files to show before pagination" />
+
+	<style type="text/css">
+	
+		.file_browser { width:100%; overflow:auto; }
+		.file_browser .file_list { float:right; width:80%; }
+		.file_browser .file_list .file .file_title a { text-decoration:none; font-size:1.2em; }
+		.file_browser .file_list .file .file_location { font-size:.7em; color:#AAA; }
+		.file_browser .file_list thead { background-color:#f2f3f3; }
+		.file_browser .file_list .search { font-size:.9em; }
+		.file_browser .file_list .search input { margin-left:3px; }
+		.file_browser table.list tfoot>tr>td { border:none; border-top:1px solid #e0e3e5; text-align:center; background-color:#f2f3f3; }
+		.file_browser .nav_footer { position:relative; width:100%; color:#a8a8a8; }
+		.file_browser .nav_footer .prev { background-image: url(/img/paginationArrows.gif); background-repeat: no-repeat; background-position: -10px 1px; margin: 0; padding: 0; width: 9px; height: 10px; }
+		.file_browser .nav_footer .next { background-image: url(/img/paginationArrows.gif); background-repeat: no-repeat; background-position: -17px 1px; margin: 0; padding: 0; width: 9px; height: 10px; }
+		.file_browser .nav_footer .prevoff { background-image: url(/img/paginationArrows.gif); background-repeat: no-repeat; background-position: -10px -10px; margin: 0; padding: 0; width: 9px; height: 10px; }
+		.file_browser .nav_footer .nextoff { background-image: url(/img/paginationArrows.gif); background-repeat: no-repeat; background-position: -17px -10px; margin: 0; padding: 0; width: 9px; height: 10px; }
+		.file_browser .nav_footer a { text-decoration:none; margin:0 5px; }
+		.file_browser .nav_footer a:hover { color:#000; }
+		.file_browser .nav_footer span { margin:0 5px; }
+		.file_browser .nav_footer .counter { layout:block; position:absolute; left:0; color:#000; }
+		
+		.file_browser .file_groups { float:right; width:20%; }
+		.file_browser .file_groups div { padding:5px; background-color:#fff; border:1px solid #e0e3e5; margin-right:10px; margin-bottom:5px; font-size:1.2em; cursor:pointer; }
+		.file_browser .file_groups div.selected { background-color:#f2f3f3; cursor:initial; }
+		.file_browser .file_groups div:hover { background-color:#E3F3FF; }
+		.file_browser .file_groups div.selected:hover { background-color:#f2f3f3; }
+		
+	</style>
+	
+	<script type='text/javascript'>
+		function noenter(ev)  {
+		   	if (window.event && window.event.keyCode == 13 || ev.which == 13) {
+		   		searchFiles();
+		       	return false;
+		     } else {
+		        return true;
+		     }
+		 }
+	</script>
+
+
+	<apex:pageBlock title="Files">
+		<apex:form >
+			<apex:actionFunction name="searchFiles" action="{!search}" rerender="file_list" />
+		
+			<apex:outputPanel id="file_browser" styleClass="file_browser" layout="block">
+			
+				<apex:outputPanel layout="block" id="file_list" styleClass="file_list">
+					<apex:pageBlockTable value="{!files}" var="file">
+						<apex:facet name="header">
+							<apex:outputPanel layout="block" styleClass="search">
+								Filter
+								<apex:inputText value="{!searchStr}" onkeypress="return noenter(event);" />
+								<apex:commandButton onclick="searchFiles();return false;" value="Go" />
+							</apex:outputPanel>
+						</apex:facet>
+						<apex:column >
+							<apex:facet name="header">Related Files</apex:facet>
+							<apex:outputPanel layout="block" styleClass="file">
+								<apex:outputPanel layout="block" styleClass="file_title">
+									<apex:outputLink value="/{!file.attachment.Id}"><apex:outputText value="{!file.attachment.Title}" /></apex:outputLink>
+								</apex:outputPanel>
+								<apex:outputPanel layout="block" styleClass="file_location">
+									<apex:outputText value="{!file.location}" />
+								</apex:outputPanel>
+							</apex:outputPanel>
+						</apex:column>
+						<apex:column value="{!file.attachment.CreatedDate}" />
+						<apex:facet name="footer">
+							<apex:outputPanel layout="block" styleClass="nav_footer">
+								<apex:commandLink action="{!previous}" rendered="{!hasPrevious}" rerender="file_list" ><apex:image styleClass="prev" value="/s.gif" /> Previous</apex:commandLink>
+								<apex:outputPanel rendered="{!!hasPrevious}"><apex:image styleClass="prevoff" value="/s.gif" /> Previous</apex:outputPanel>
+								<apex:outputPanel styleClass="counter"><apex:outputText value="{!navCounter}" /></apex:outputPanel>
+								<apex:commandLink action="{!next}" rendered="{!hasNext}" rerender="file_list" >Next <apex:image styleClass="next" value="/s.gif" /></apex:commandLink>
+								<apex:outputPanel rendered="{!!hasNext}" >Next <apex:image styleClass="nextoff" value="/s.gif" /></apex:outputPanel>
+							</apex:outputPanel>
+						</apex:facet>
+					</apex:pageBlockTable>
+				</apex:outputPanel>
+				
+				<apex:outputPanel layout="block" styleClass="file_groups">
+					<apex:repeat value="{!fileGroups}" var="group">
+						<apex:outputPanel layout="block" styleClass="{!IF(group.selected,'selected', '')}">
+							<apex:outputText value="{!group.Name}" />
+							<apex:actionSupport event="onclick" action="{!filterGroup}" rerender="file_browser" rendered="{!!group.selected}">
+								<apex:param name="groupFilter" assignTo="{!groupFilter}" value="{!group.key}" />
+							</apex:actionSupport>
+						</apex:outputPanel>
+					</apex:repeat> 
+				</apex:outputPanel>
+				
+			</apex:outputPanel>
+		</apex:form>
+	</apex:pageBlock>
+	
+
+	
+
+
+</apex:component>
